@@ -1,0 +1,58 @@
+name: Daily Repository Heartbeat
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  
+  # Allows manual triggering for testing
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+      
+      - name: Update activity
+        run: |
+          # Get the timestamp of the last commit
+          LAST_COMMIT=$(git log -1 --format=%ct)
+          CURRENT_TIME=$(date +%s)
+          HOURS_SINCE=$((($CURRENT_TIME - $LAST_COMMIT) / 3600))
+          
+          echo "Hours since last commit: $HOURS_SINCE"
+          
+          # If more than 24 hours since last commit
+          if [ $HOURS_SINCE -gt 24 ]; then
+            echo "Creating heartbeat commit..."
+            
+            # Create or update the activity log
+            ACTIVITY_FILE="activity.md"
+            
+            if [ ! -f "$ACTIVITY_FILE" ]; then
+              echo "# Repository Activity Log" > "$ACTIVITY_FILE"
+              echo "" >> "$ACTIVITY_FILE"
+            fi
+            
+            # Add timestamp with timezone
+            echo "✨ Repository active as of $(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$ACTIVITY_FILE"
+            
+            # Commit and push changes
+            git add "$ACTIVITY_FILE"
+            git commit -m "chore: daily activity update [skip ci]"
+            git push
+          else
+            echo "Repository has recent activity (within last 24 hours)"
+          fi
