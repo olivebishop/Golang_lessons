@@ -1,9 +1,9 @@
-name: Daily Repository Heartbeat
+name: Frequent Repository Heartbeat
 
 on:
   schedule:
-    # Runs at 00:00 UTC every day
-    - cron: '0 0 * * *'
+    # Runs every 5 minutes
+    - cron: '*/5 * * * *'
   
   # Allows manual triggering for testing
   workflow_dispatch:
@@ -27,32 +27,32 @@ jobs:
       
       - name: Update activity
         run: |
-          # Get the timestamp of the last commit
-          LAST_COMMIT=$(git log -1 --format=%ct)
-          CURRENT_TIME=$(date +%s)
-          HOURS_SINCE=$((($CURRENT_TIME - $LAST_COMMIT) / 3600))
+          # Get current timestamp
+          TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S %Z')
+          echo "Running update at $TIMESTAMP"
           
-          echo "Hours since last commit: $HOURS_SINCE"
+          # Update the activity file
+          ACTIVITY_FILE="activity.md"
           
-          # If more than 24 hours since last commit
-          if [ $HOURS_SINCE -gt 24 ]; then
-            echo "Creating heartbeat commit..."
-            
-            # Create or update the activity log
-            ACTIVITY_FILE="activity.md"
-            
-            if [ ! -f "$ACTIVITY_FILE" ]; then
-              echo "# Repository Activity Log" > "$ACTIVITY_FILE"
-              echo "" >> "$ACTIVITY_FILE"
-            fi
-            
-            # Add timestamp with timezone
-            echo "✨ Repository active as of $(date '+%Y-%m-%d %H:%M:%S %Z')" >> "$ACTIVITY_FILE"
-            
-            # Commit and push changes
-            git add "$ACTIVITY_FILE"
-            git commit -m "chore: daily activity update [skip ci]"
-            git push
-          else
-            echo "Repository has recent activity (within last 24 hours)"
+          if [ ! -f "$ACTIVITY_FILE" ]; then
+            echo "# Repository Activity Log" > "$ACTIVITY_FILE"
+            echo "" >> "$ACTIVITY_FILE"
           fi
+          
+          # Keep only the last 100 entries (to avoid file growing too large)
+          if [ -f "$ACTIVITY_FILE" ]; then
+            tail -n 100 "$ACTIVITY_FILE" > "${ACTIVITY_FILE}.tmp"
+            mv "${ACTIVITY_FILE}.tmp" "$ACTIVITY_FILE"
+          fi
+          
+          # Add new timestamp
+          echo "🔄 Update at $TIMESTAMP" >> "$ACTIVITY_FILE"
+          
+          # Commit and push changes
+          git add "$ACTIVITY_FILE"
+          git commit -m "chore: update at $TIMESTAMP [skip ci]"
+          git push || {
+            # If push fails, pull latest changes and try again
+            git pull --rebase
+            git push
+          }
