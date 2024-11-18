@@ -1,1 +1,1 @@
-# golang_basics
+# get started with golang
